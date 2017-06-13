@@ -1,12 +1,5 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-"""
-Created on Mon Jun  5 09:52:17 2017
-
-@author: hungfei
-
-<Labeled LDA: A supervised topic model for credit attribution in multi-labeled corpora>
-"""
 
 import numpy as np
 from scipy.special import gamma
@@ -71,10 +64,10 @@ def preprocessing(corpus,labels):
 
 
 class LabeledLDAModel(object):
+    """
+    implementation of `Labeled LDA: A supervised topic model for credit attribution in multi-labeled corpora` by Ramage D, et al. (2009)
+    """
     def __init__(self,dpre,alpha=0.1,beta=0.01,max_iter=100,seed=1,converge_criteria=0.001):
-        """
-        dpre: DataPreProcessing object 
-        """
         #initial var
         self.dpre=dpre
         self.K=dpre.labels_count
