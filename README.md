@@ -1,7 +1,11 @@
 # Topic-Model 
 #### 2017.06.13
 第一次用Github，一边学习一边更新，其实网上关于这部分的代码很多，但是自己写能加深认识和理解。  
-目前完成了LDA、Labeled-LDA、Author-Topic-Model，都是采用Gibbs Sampling实现。
+目前完成了  
+LDA: `Latent Dirichlet Allocation` by David M.Blei, et al. (2003)  
+Labeled-LDA: `Labeled LDA: A supervised topic model for credit attribution in multi-labeled corpora` by Ramage D, et al. (2009)  
+Author-Topic-Model: `The Author-Topic Model for Authors and Documents` by Rosen-Zvi, et al. (2004)  
+都是采用Gibbs Sampling实现。
 
 接下来的任务：</br>
 1.代码里只设置了最大迭代次数，如何判断马尔科夫链的收敛，计算公式？</br>
