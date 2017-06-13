@@ -56,7 +56,7 @@ def preprocessing(corpus,authors):
 
 class ATM(object):
     """Author Topic Model
-    implementation of `The Author-Topic Model for Authors and Documents` by Rosen-Zvi, et al. (UAI 2004)
+    implementation of `The Author-Topic Model for Authors and Documents` by Rosen-Zvi, et al. (2004)
     """
     def __init__(self,dpre,K,alpha=0.1,beta=0.01,max_iter=100,seed=1,converge_criteria=0.001):
         #initial var
