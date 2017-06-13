@@ -1,10 +1,5 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-"""
-Created on Mon Jun  5 09:52:17 2017
-
-@author: hungfei
-"""
 
 import numpy as np
 from scipy.special import gamma
@@ -60,11 +55,10 @@ def preprocessing(corpus,authors):
 
 
 class ATM(object):
+    """Author Topic Model
+    implementation of `The Author-Topic Model for Authors and Documents` by Rosen-Zvi, et al. (UAI 2004)
+    """
     def __init__(self,dpre,K,alpha=0.1,beta=0.01,max_iter=100,seed=1,converge_criteria=0.001):
-        """
-        dpre: DataPreProcessing object 
-        K: number of topics
-        """
         #initial var
         self.dpre=dpre
         self.K=K
