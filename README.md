@@ -1,4 +1,5 @@
 # Topic-Model 
+###2017.06.13  
 第一次用Github，一边学习一边更新，其实网上关于这部分的代码很多，但是自己写能加深认识和理解。
 
 目前完成了LDA、Labeled-LDA、Author-Topic-Model，都是采用Gibbs Sampling实现。
