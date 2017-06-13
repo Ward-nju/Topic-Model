@@ -114,19 +114,10 @@ class LDAModel(object):
    
                 
 if __name__=='__main__':
-    """
-    df=pd.read_csv('非用户词典/分词step3.csv',index_col=[0],encoding='utf-8')
-    df=df.ix[:,1:]
-    corpus=np.array(df).tolist()
-    corpus=[[y for y in x if type(y)!=float]for x in corpus ]
-    """
-    #corpus=[['I','like','eating','apple'],['The','girl','like','dancing'],['dancing','is','a','hobby'],['eating','is','a','hobby']]
     corpus=[['red','apple','banana','yellow','blue'],
             ['apple','iphone','computer',],
             ['banana','orange','pear'],
             ['apple','intel','ms']]
     dpre=preprocessing(corpus)
     K=3
-    model=LDAModel(dpre,K,max_iter=100)      
-    a=model.theta
-    b=model.phi
+    model=LDAModel(dpre,K)      
