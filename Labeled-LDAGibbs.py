@@ -65,6 +65,7 @@ def preprocessing(corpus,labels):
 
 class LabeledLDAModel(object):
     """
+    Labeled LDA
     implementation of `Labeled LDA: A supervised topic model for credit attribution in multi-labeled corpora` by Ramage D, et al. (2009)
     """
     def __init__(self,dpre,alpha=0.1,beta=0.01,max_iter=100,seed=1,converge_criteria=0.001):
