@@ -19,15 +19,6 @@ class DataPreProcessing(object):
         self.id2label=OrderedDict()
         
 def preprocessing(corpus,labels):
-    """
-    corpus: type list, like \n
-            [['red','apple','banana','yellow','blue'],
-             ['apple','iphone','computer',],
-             ['banana','orange','pear'],
-             ['apple','intel','ms']] 
-    labels: type list, like [['fruit','color'],['tech'],['fruit'],['tech']] same length with corpus
-    return: DataPreProcessing object
-    """
     if len(corpus)!=len(labels):
         print('errors occur:corpus and labels have different length!')
     else:
