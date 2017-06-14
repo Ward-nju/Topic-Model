@@ -173,6 +173,18 @@ class ATM(object):
             N+=len(dpre_test.docs[m])
         perplexity=np.exp(-np.log(p)/N)
         return perplexity
+    
+    def symmetric_KL_divergence(self,i,j):
+        #caculate symmetric KL divergence between author i and j
+        #i,j: author name or author id
+        if type(i)!=int or type(j)!=int:
+            i=self.dpre.author2id[i]
+            j=self.dpre.author2id[j]
+        sKL=0
+        for k in range(self.K):
+            sKL+=self.theta[i,k]*np.log(self.theta[i,k]/self.theta[j,k]) \
+                +self.theta[j,k]*np.log(self.theta[j,k]/self.theta[i,k])
+        return sKL
 
 
 if __name__=='__main__':
