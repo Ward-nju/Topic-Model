@@ -148,6 +148,31 @@ class ATM(object):
                 word=self.dpre.id2word[ix]
                 s+=str(prob)+'*'+word+' + '
             print('topic'+str(k)+':  '+s)
+            
+    def perplexity(self,dpre_test=None):
+        #when split the corpus into traing\test set: the authors in testing set should be in trainging set,too.
+        if dpre_test==None:
+            dpre_test=self.dpre
+        N=0
+        p=1.0
+        for m in range(dpre_test.docs_count):    
+            for n in range(len(dpre_test.docs[m])):
+                authors=dpre_test.authors[m]  #author ids in testing set
+                word=dpre_test.id2word[dpre_test.docs[m][n]]    #word
+                
+                if word in self.dpre.word2id.keys(): #training set has "word"
+                    w_id=self.dpre.word2id[word]  #"word" id in training set
+                    p_w=0.0  #probablity for single word
+                    for a in authors:
+                        a_id=self.dpre.author2id[dpre_test.id2author[a]]    #author id in training set
+                        p_w+=np.dot(self.theta[a_id,:],self.phi[:,w_id])
+                    p_w=p_w/len(authors)  #avg probabily for "word" given by the set of "authors"
+                    p*=p_w  #probablity for documents
+                else:  #no way to caculate the probablity for unseen word
+                    pass
+            N+=len(dpre_test.docs[m])
+        perplexity=np.exp(-np.log(p)/N)
+        return perplexity
 
 
 if __name__=='__main__':
@@ -159,5 +184,4 @@ if __name__=='__main__':
     dpre=preprocessing(corpus,authors)
     K=3
     model=ATM(dpre,K,max_iter=100)      
-    a=model.theta
-    b=model.phi
+
