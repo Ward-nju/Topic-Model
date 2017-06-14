@@ -154,8 +154,9 @@ class ATM(object):
         if dpre_test==None:
             dpre_test=self.dpre
         N=0
-        p=1.0
-        for m in range(dpre_test.docs_count):    
+        p=0.0
+        for m in range(dpre_test.docs_count):   
+            p_d=1.0
             for n in range(len(dpre_test.docs[m])):
                 authors=dpre_test.authors[m]  #author ids in testing set
                 word=dpre_test.id2word[dpre_test.docs[m][n]]    #word
@@ -167,11 +168,12 @@ class ATM(object):
                         a_id=self.dpre.author2id[dpre_test.id2author[a]]    #author id in training set
                         p_w+=np.dot(self.theta[a_id,:],self.phi[:,w_id])
                     p_w=p_w/len(authors)  #avg probabily for "word" given by the set of "authors"
-                    p*=p_w  #probablity for documents
+                    p_d*=p_w  #probablity for documents
                 else:  #no way to caculate the probablity for unseen word
                     pass
+            p+=np.log(p_d)
             N+=len(dpre_test.docs[m])
-        perplexity=np.exp(-np.log(p)/N)
+        perplexity=np.exp(-p/N)
         return perplexity
     
     def symmetric_KL_divergence(self,i,j):
