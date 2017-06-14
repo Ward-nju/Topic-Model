@@ -115,10 +115,12 @@ class LDAModel(object):
    
                 
 if __name__=='__main__':
-    corpus=[['red','apple','banana','yellow','blue'],
-            ['apple','iphone','computer',],
-            ['banana','orange','pear'],
-            ['apple','intel','ms']]
+    corpus=[['apple','orange','banana'],
+            ['apple','orange'],
+            ['banana','orange'],
+            ['cat','dog'],
+            ['dog','tiger'],
+            ['tiger','cat']]
     dpre=preprocessing(corpus)
-    K=3
+    K=2
     model=LDAModel(dpre,K)      
