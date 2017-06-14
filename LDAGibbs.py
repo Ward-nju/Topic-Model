@@ -35,7 +35,8 @@ def preprocessing(corpus):
 
 
 class LDAModel(object):
-    """Author Topic Model
+    """
+    Latent Dirichlet Allocation
     implementation of `Latent Dirichlet Allocation` by David M.Blei, et al. (2003)
     """
     def __init__(self,dpre,K,alpha=0.1,beta=0.01,max_iter=100,seed=1,converge_criteria=0.001):
