@@ -71,7 +71,7 @@ def preprocessing(corpus,authors,years):
 
 class Temporal_Author_Topic_Model(object):
     """
-    Author Topic Model
+    Temporal Author Topic Model
     implementation of `Exploiting Temporal Authors Interests via Temporal-Author-Topic Modeling` by Ali Daud, et al. (2009)
     """
     def __init__(self,dpre,K,alpha=0.1,beta=0.01,gam=0.1,max_iter=100,seed=1):
@@ -94,7 +94,6 @@ class Temporal_Author_Topic_Model(object):
         
         Z=np.array([[0 for y in range(len(self.dpre.docs[x]))] for x in range(self.dpre.docs_count)])    #topic assignment for each word for each doc
         A=np.array([[0 for y in range(len(self.dpre.docs[x]))] for x in range(self.dpre.docs_count)])    #author assignment for each word for each doc
-        #Y=np.array([[0 for y in range(len(self.dpre.docs[x]))] for x in range(self.dpre.docs_count)])   #year assigment for each word for each doc
         
         #initialization
         np.random.seed(self.seed)
@@ -118,8 +117,7 @@ class Temporal_Author_Topic_Model(object):
                 
                 Z[m][n]=k
                 A[m][n]=a
-                #Y[m][n]=
-        
+                
         #output var:
         self.theta=np.array([[0.0 for y in range(self.K)] for x in range(self.dpre.authors_count)])
         self.phi=np.array([[0.0 for y in range(self.dpre.words_count)] for x in range(self.K)])      
