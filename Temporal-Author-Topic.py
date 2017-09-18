@@ -5,6 +5,8 @@ import numpy as np
 #from scipy.special import gamma
 from collections import OrderedDict
 import pandas as pd
+from datetime import datetime
+from numba import jit
 
 class DataPreProcessing(object):
     def __init__(self):
@@ -22,11 +24,10 @@ class DataPreProcessing(object):
         self.author2id=OrderedDict()
         self.id2author=OrderedDict()
         self.year2id=OrderedDict()
-        
+
+              
 def preprocessing(corpus,authors,years):
-    if len(corpus)!=len(authors):
-        print('errors occur:corpus and authors have different length!')
-    else:
+    if len(corpus)==len(authors) and len(corpus)==len(years):
         word_index=0
         dpre=DataPreProcessing()
         for sentence in corpus:
@@ -67,6 +68,9 @@ def preprocessing(corpus,authors,years):
         dpre.id2author={v:k for k,v in dpre.author2id.items()}
         
         return dpre
+    else:
+        print('errors occur: different length!')
+    
 
 
 class Temporal_Author_Topic_Model(object):
@@ -75,101 +79,139 @@ class Temporal_Author_Topic_Model(object):
     implementation of `Exploiting Temporal Authors Interests via Temporal-Author-Topic Modeling` by Ali Daud, et al. (2009)
     """
     def __init__(self,dpre,K,alpha=0.1,beta=0.01,gam=0.1,max_iter=100,seed=1):
-        #initial var
         self.dpre=dpre
-        self.K=K
+        self.A=dpre.authors_count #number of authors
+        self.K=K #number of topics
+        self.V=dpre.words_count #number of words
+        self.Y=dpre.years_count #number of timestamps
+        
         self.alpha=alpha
         self.beta=beta
         self.gam=gam
         self.max_iter=max_iter
         self.seed=seed
         
-        at=np.zeros([self.dpre.authors_count,self.K],dtype=int)   #authors*topics
-        tw=np.zeros([self.K,self.dpre.words_count],dtype=int)  #topics*words
-        ty=np.zeros([self.K,self.dpre.years_count],dtype=int)   #topics*years
+        self.at=np.zeros([self.A,self.K],dtype=int)  #authors*topics 
+        self.tw=np.zeros([self.K,self.V],dtype=int)  #topics*words
+        self.ty=np.zeros([self.K,self.Y],dtype=int)   #topics*years
         
-        atsum=at.sum(axis=1)    
-        twsum=tw.sum(axis=1)
-        tysum=ty.sum(axis=1)
+        self.atsum=self.at.sum(axis=1)    
+        self.twsum=self.tw.sum(axis=1)
+        self.tysum=self.ty.sum(axis=1)
         
-        Z=np.array([[0 for y in range(len(self.dpre.docs[x]))] for x in range(self.dpre.docs_count)])    #topic assignment for each word for each doc
-        A=np.array([[0 for y in range(len(self.dpre.docs[x]))] for x in range(self.dpre.docs_count)])    #author assignment for each word for each doc
+        #topic assignment for each word for each doc
+        self.Z_assigment=np.array([[0 for y in range(len(self.dpre.docs[x]))] for x in range(self.dpre.docs_count)])
+        #author assignment for each word for each doc
+        self.A_assigment=np.array([[0 for y in range(len(self.dpre.docs[x]))] for x in range(self.dpre.docs_count)])    
         
-        #initialization
-        np.random.seed(self.seed)
+        #output var
+        self.theta=np.zeros([self.A,self.K],dtype=float)
+        self.phi=np.zeros([self.K,self.V],dtype=float)
+        self.psi=np.zeros([self.K,self.Y],dtype=float)
+    
+    
+    @jit    
+    def initializeModel(self):
+        print('init start:',datetime.now())
+        np.random.seed(self.seed) 
         for m in range(self.dpre.docs_count):
+            year=self.dpre.years[m]
             for n in range(len(self.dpre.docs[m])):   #n is word's index
                 #选主题
-                k=np.random.multinomial(1,[1/self.K]*self.K).argmax()
+                #k=np.random.multinomial(1,[1/self.K]*self.K).argmax() 与下面等价
+                k=np.random.randint(low=0,high=K)
                 
                 #选作者
-                p_a=np.array([0.0 for x in range(self.dpre.authors_count)])  
+                if len(self.dpre.authors[m])==1:    #这篇文章只有一个作者，那就是TA
+                    a=self.dpre.authors[m][0]
+                else:   #若有多个作者，随机选择一个
+                    idx=np.random.randint(low=0,high=len(self.dpre.authors[m]))
+                    a=self.dpre.authors[m][idx]
+                """
+                p_a=np.array([0.0 for x in range(self.A)])  
                 for x in self.dpre.authors[m]:  #保证了这篇文章对应的单词只能出自这篇文章的作者
                     p_a[x]=1/len(self.dpre.authors[m])  
                 a=np.random.multinomial(1,p_a).argmax()
-                          
-                at[a,k]+=1
-                atsum[a]+=1
-                tw[k,self.dpre.docs[m][n]]+=1
-                twsum[k]+=1
-                ty[k,self.dpre.years[m]]+=1
-                tysum[k]+=1
+                """          
+                self.at[a,k]+=1
+                self.atsum[a]+=1
+                self.tw[k,self.dpre.docs[m][n]]+=1
+                self.twsum[k]+=1
+                self.ty[k,year]+=1
+                self.tysum[k]+=1
                 
-                Z[m][n]=k
-                A[m][n]=a
-                
-        #output var:
-        self.theta=np.array([[0.0 for y in range(self.K)] for x in range(self.dpre.authors_count)])
-        self.phi=np.array([[0.0 for y in range(self.dpre.words_count)] for x in range(self.K)])      
-        self.psi=np.array([[0.0 for y in range(self.dpre.years_count)] for x in range(self.K)])
-
+                self.Z_assigment[m][n]=k
+                self.A_assigment[m][n]=a
+        print('init finish:',datetime.now())
+    
+    
+    
+    @jit
+    def inferenceModel(self):    
         #Gibbs sampling over burn-in period and sampling period
-        cur_iter=0
+        self.initializeModel()
         
+        print('inference start:',datetime.now())
+        
+        cur_iter=0        
         while cur_iter<=self.max_iter:
             for m in range(self.dpre.docs_count):
-                for n in range(len(self.dpre.docs[m])):   #n is word's index
-                    topic=Z[m][n]
-                    author=A[m][n]
-                    word=self.dpre.docs[m][n]
-                    
-                    at[author,topic]-=1
-                    atsum[author]-=1
-                    tw[topic,word]-=1
-                    twsum[topic]-=1
-                    ty[topic,self.dpre.years[m]]-=1
-                    tysum[topic]-=1
-
-                    p=np.array([[0.0 for y in range(self.K)] for x in range(self.dpre.authors_count)])
-                    for a in self.dpre.authors[m]:   #!
-                        for k in range(self.K):
-                            p[a,k]=(tw[k,word]+self.beta)/(twsum[k]+self.dpre.words_count*self.beta) \
-                                    *(at[a,k]+self.alpha)/(atsum[a]+self.K*self.alpha) \
-                                    *(ty[k,self.dpre.years[m]]+self.gam)/(tysum[k]+self.dpre.years_count*self.gam)
-                    #print(p)
-                    p=p.reshape(self.dpre.authors_count*self.K)
-                    index=np.random.multinomial(1,p/p.sum()).argmax()
-                    author=int(index/self.K)
-                    topic=index%self.K
-                    
-                    at[author,topic]+=1
-                    atsum[author]+=1
-                    tw[topic,word]+=1
-                    twsum[topic]+=1
-                    ty[topic,self.dpre.years[m]]+=1
-                    tysum[topic]+=1
-                    Z[m][n]=topic     
-                    A[m][n]=author 
+                N=len(self.dpre.docs[m])
+                for n in range(N):   #n is word's index
+                    self.sample(m,n)
             #print(cur_iter)
-            cur_iter+=1            
-        #output
-        for a in range(self.dpre.authors_count):
-            self.theta[a]=(at[a]+self.alpha)/(atsum[a]+self.alpha*self.K)
-        for k in range(self.K):
-            self.phi[k]=(tw[k]+self.beta)/(twsum[k]+self.beta*self.dpre.words_count)
-        for k in range(self.K):
-            self.psi[k]=(ty[k]+self.gam)/(tysum[k]+self.gam*self.dpre.years_count)
+            cur_iter+=1     
+            
+        print('inference finish:',datetime.now())
+        
+        self.updateEstimatedParameters()    
     
+    
+    
+    @jit
+    def sample(self,m,n):
+        topic=self.Z_assigment[m][n]
+        author=self.A_assigment[m][n]
+        word=self.dpre.docs[m][n]
+        year=self.dpre.years[m]
+                    
+        self.at[author,topic]-=1
+        self.atsum[author]-=1
+        self.tw[topic,word]-=1
+        self.twsum[topic]-=1
+        self.ty[topic,year]-=1
+        self.tysum[topic]-=1
+
+        p=np.zeros([self.A,self.K],dtype=float)
+        for a in self.dpre.authors[m]:   #!
+            for k in range(self.K):
+                p[a,k]=(self.tw[k,word]+self.beta)/(self.twsum[k]+self.V*self.beta) \
+                    *(self.at[a,k]+self.alpha)/(self.atsum[a]+self.K*self.alpha) \
+                    *(self.ty[k,year]+self.gam)/(self.tysum[k]+self.Y*self.gam)
+
+        p=p.reshape(self.A*self.K)
+        index=np.random.multinomial(1,p/p.sum()).argmax()
+        author=int(index/self.K)
+        topic=index%self.K
+                    
+        self.at[author,topic]+=1
+        self.atsum[author]+=1
+        self.tw[topic,word]+=1
+        self.twsum[topic]+=1
+        self.ty[topic,year]+=1
+        self.tysum[topic]+=1
+        self.Z_assigment[m][n]=topic     
+        self.A_assigment[m][n]=author    
+
+    @jit
+    def updateEstimatedParameters(self):
+        for a in range(self.A):
+            self.theta[a]=(self.at[a]+self.alpha)/(self.atsum[a]+self.alpha*self.K)
+        for k in range(self.K):
+            self.phi[k]=(self.tw[k]+self.beta)/(self.twsum[k]+self.beta*self.V)
+        for k in range(self.K):
+            self.psi[k]=(self.ty[k]+self.gam)/(self.tysum[k]+self.gam*self.Y)
+                    
     def print_tw(self,topN=10):
         topics=[]
         for k in range(self.K):
@@ -201,5 +243,8 @@ if __name__=='__main__':
     years=[2004,2004,2005,2008,2004,2005,2005]
     dpre=preprocessing(corpus,authors,years)
     K=3
-    model=Temporal_Author_Topic_Model(dpre,K,max_iter=100)      
-
+    model=Temporal_Author_Topic_Model(dpre,K,max_iter=100)
+    model.inferenceModel()
+    a=model.print_at()
+    b=model.print_tw()
+    c=model.print_ty()
