@@ -7,6 +7,7 @@ from collections import OrderedDict
 import pandas as pd
 from datetime import datetime
 from numba import jit
+import pickle
 
 class DataPreProcessing(object):
     def __init__(self):
@@ -119,7 +120,7 @@ class Temporal_Author_Topic_Model(object):
             for n in range(len(self.dpre.docs[m])):   #n is word's index
                 #选主题
                 #k=np.random.multinomial(1,[1/self.K]*self.K).argmax() 与下面等价
-                k=np.random.randint(low=0,high=K)
+                k=np.random.randint(low=0,high=self.K)
                 
                 #选作者
                 if len(self.dpre.authors[m])==1:    #这篇文章只有一个作者，那就是TA
@@ -155,11 +156,14 @@ class Temporal_Author_Topic_Model(object):
         
         cur_iter=0        
         while cur_iter<=self.max_iter:
+            #i=0
             for m in range(self.dpre.docs_count):
                 N=len(self.dpre.docs[m])
                 for n in range(N):   #n is word's index
                     self.sample(m,n)
-            #print(cur_iter)
+                #print(i)
+                #i+=1
+            print(cur_iter,datetime.now())
             cur_iter+=1     
             
         print('inference finish:',datetime.now())
@@ -170,38 +174,50 @@ class Temporal_Author_Topic_Model(object):
     
     @jit
     def sample(self,m,n):
-        topic=self.Z_assigment[m][n]
-        author=self.A_assigment[m][n]
+        old_topic=self.Z_assigment[m][n]
+        old_author=self.A_assigment[m][n]
         word=self.dpre.docs[m][n]
         year=self.dpre.years[m]
+        authors_set=self.dpre.authors[m] #第m篇文章的作者集合
                     
-        self.at[author,topic]-=1
-        self.atsum[author]-=1
-        self.tw[topic,word]-=1
-        self.twsum[topic]-=1
-        self.ty[topic,year]-=1
-        self.tysum[topic]-=1
+        self.at[old_author,old_topic]-=1
+        self.atsum[old_author]-=1
+        self.tw[old_topic,word]-=1
+        self.twsum[old_topic]-=1
+        self.ty[old_topic,year]-=1
+        self.tysum[old_topic]-=1
 
+        section1=(self.tw[:,word]+self.beta)/(self.twsum+self.V*self.beta)
+        section2=(self.at[authors_set,:]+self.alpha)/(self.atsum[authors_set].repeat(self.K).reshape(len(authors_set),self.K)+self.K*self.alpha)
+        section3=(self.ty[:,year]+self.gam)/(self.tysum+self.Y*self.gam)
+        p=section1*section2*section3
+        p=p.reshape(len(authors_set)*self.K)
+        index=np.random.multinomial(1,p/p.sum()).argmax()
+        new_author=authors_set[int(index/self.K)]
+        new_topic=index%self.K
+        """
+        #use loop, so slowly
+        
         p=np.zeros([self.A,self.K],dtype=float)
         for a in self.dpre.authors[m]:   #!
             for k in range(self.K):
                 p[a,k]=(self.tw[k,word]+self.beta)/(self.twsum[k]+self.V*self.beta) \
                     *(self.at[a,k]+self.alpha)/(self.atsum[a]+self.K*self.alpha) \
                     *(self.ty[k,year]+self.gam)/(self.tysum[k]+self.Y*self.gam)
-
         p=p.reshape(self.A*self.K)
         index=np.random.multinomial(1,p/p.sum()).argmax()
-        author=int(index/self.K)
-        topic=index%self.K
-                    
-        self.at[author,topic]+=1
-        self.atsum[author]+=1
-        self.tw[topic,word]+=1
-        self.twsum[topic]+=1
-        self.ty[topic,year]+=1
-        self.tysum[topic]+=1
-        self.Z_assigment[m][n]=topic     
-        self.A_assigment[m][n]=author    
+        new_author=int(index/self.K)
+        new_topic=index%self.K
+        """         
+           
+        self.at[new_author,new_topic]+=1
+        self.atsum[new_author]+=1
+        self.tw[new_topic,word]+=1
+        self.twsum[new_topic]+=1
+        self.ty[new_topic,year]+=1
+        self.tysum[new_topic]+=1
+        self.Z_assigment[m][n]=new_topic     
+        self.A_assigment[m][n]=new_author    
 
     @jit
     def updateEstimatedParameters(self):
@@ -230,8 +246,7 @@ class Temporal_Author_Topic_Model(object):
     def print_ty(self):
         return self.psi
        
-
-if __name__=='__main__':
+def test():
     corpus=[['computer','medical','DM','algorithm','drug'],
             ['computer','AI','DM','algorithm'],
             ['art','beauty','architectural','architector'],
@@ -248,3 +263,24 @@ if __name__=='__main__':
     a=model.print_at()
     b=model.print_tw()
     c=model.print_ty()
+
+def test2():
+    f= open('F:/TopicInterestGraph/dtm/corpus.pickle', 'rb')
+    corpus = pickle.load(f)
+    f.close()
+    
+    f= open('F:/TopicInterestGraph/dtm/authors.pickle', 'rb')
+    authors = pickle.load(f)
+    f.close()
+    
+    f= open('F:/TopicInterestGraph/dtm/years.pickle', 'rb')
+    years = pickle.load(f)
+    f.close()
+    years=years[:23528]
+    dpre=preprocessing(corpus,authors,years)
+    K=200
+    model=Temporal_Author_Topic_Model(dpre,K,max_iter=100)
+    model.inferenceModel()
+    
+if __name__=='__main__':
+    test()
