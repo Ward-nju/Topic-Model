@@ -12,10 +12,12 @@ Author-Topic-Model: `The Author-Topic Model for Authors and Documents` by Rosen-
 2.主题数确定：perplexity p(w|T)如何计算</br>
 3.推断</br>
 
-目前代码可读性不是很好，不过反正也是自己用的，有时间再修改。  
-关于主题模型有进一步的理解再更新……  
 
 #### 2017.09.16
-好久没看主题模型这方面的了，根据Boss要求，更新了一个主题模型：
+好久没看主题模型这方面的了，根据Boss要求，更新了一个主题模型：  
 `Exploiting Temporal Authors Interests via Temporal-Author-Topic Modeling` by Ali Daud, et al. (2009)
 虽然代码可读性有点小瑕疵，不过经过试验，代码能完成基本的任务，暂时先这样吧~
+
+#### 2017.09.19
+去掉了Temporal-Author-Topic Modeling中的一个循环，并采用numba的@jit加速，效率有显著提升。  
+其他的准备也据此修改。
