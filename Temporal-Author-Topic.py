@@ -264,23 +264,6 @@ def test():
     b=model.print_tw()
     c=model.print_ty()
 
-def test2():
-    f= open('F:/TopicInterestGraph/dtm/corpus.pickle', 'rb')
-    corpus = pickle.load(f)
-    f.close()
-    
-    f= open('F:/TopicInterestGraph/dtm/authors.pickle', 'rb')
-    authors = pickle.load(f)
-    f.close()
-    
-    f= open('F:/TopicInterestGraph/dtm/years.pickle', 'rb')
-    years = pickle.load(f)
-    f.close()
-    years=years[:23528]
-    dpre=preprocessing(corpus,authors,years)
-    K=200
-    model=Temporal_Author_Topic_Model(dpre,K,max_iter=100)
-    model.inferenceModel()
-    
+
 if __name__=='__main__':
     test()
