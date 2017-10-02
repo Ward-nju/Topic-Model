@@ -5,6 +5,9 @@ import numpy as np
 from scipy.special import gamma
 from collections import OrderedDict
 import pandas as pd
+from numba import jit
+from datetime import datetime
+
 
 class DataPreProcessing(object):
     def __init__(self):
@@ -59,122 +62,139 @@ class ATM(object):
     Author Topic Model
     implementation of `The Author-Topic Model for Authors and Documents` by Rosen-Zvi, et al. (2004)
     """
-    def __init__(self,dpre,K,alpha=0.1,beta=0.01,max_iter=100,seed=1,converge_criteria=0.001):
+    def __init__(self,dpre,K,alpha=0.1,beta=0.01,max_iter=100,seed=1):
         #initial var
         self.dpre=dpre
+        self.A=dpre.authors_count
         self.K=K
+        self.V=dpre.words_count
         self.alpha=alpha
         self.beta=beta
         self.max_iter=max_iter
         self.seed=seed
-        self.converge_criteria=converge_criteria
         
-        at=np.zeros([self.dpre.authors_count,self.K],dtype=int)   #authors*topics
-        tw=np.zeros([self.K,self.dpre.words_count],dtype=int)  #topics*words
-        atsum=at.sum(axis=1)    
-        twsum=tw.sum(axis=1)
-        Z=np.array([[0 for y in range(len(self.dpre.docs[x]))] for x in range(self.dpre.docs_count)])    #topic assignment for each word for each doc
-        A=np.array([[0 for y in range(len(self.dpre.docs[x]))] for x in range(self.dpre.docs_count)])    #author assignment for each word for each doc
+        self.at=np.zeros([self.A,self.K],dtype=int)   #authors*topics
+        self.tw=np.zeros([self.K,self.V],dtype=int)  #topics*words
+        self.atsum=self.at.sum(axis=1)    
+        self.twsum=self.tw.sum(axis=1)
         
-        #initialization
-        np.random.seed(self.seed)
-        for m in range(self.dpre.docs_count):
-            for n in range(len(self.dpre.docs[m])):   #n is word's index
-                k=np.random.multinomial(1,[1/self.K]*self.K).argmax()
-                
-                p_a=np.array([0.0 for x in range(self.dpre.authors_count)])  #!
-                for x in self.dpre.authors[m]:
-                    p_a[x]=1/len(self.dpre.authors[m])
-                a=np.random.multinomial(1,p_a).argmax()
-                
-                at[a,k]+=1
-                atsum[a]+=1
-                tw[k,self.dpre.docs[m][n]]+=1
-                twsum[k]+=1
-                Z[m][n]=k
-                A[m][n]=a
+        self.Z_assigment=np.array([[0 for y in range(len(self.dpre.docs[x]))] for x in range(self.dpre.docs_count)])    #topic assignment for each word for each doc
+        self.A_assigment=np.array([[0 for y in range(len(self.dpre.docs[x]))] for x in range(self.dpre.docs_count)])    #author assignment for each word for each doc
         
         #output var:
-        self.theta=np.array([[0.0 for y in range(self.K)] for x in range(self.dpre.authors_count)])
-        self.phi=np.array([[0.0 for y in range(self.dpre.words_count)] for x in range(self.K)])      
+        self.theta=np.array([[0.0 for y in range(self.K)] for x in range(self.A)])
+        self.phi=np.array([[0.0 for y in range(self.V)] for x in range(self.K)])      
 
-        #Gibbs sampling over burn-in period and sampling period
-        converge=False
-        cur_iter=0
+    @jit    
+    def initializeModel(self):
+        #initialization
+        print('init start:',datetime.now())
+        np.random.seed(self.seed)
+
+        for m in range(self.dpre.docs_count):
+            for n in range(len(self.dpre.docs[m])):   #n is word's index
+                #选主题
+                #k=np.random.multinomial(1,[1/self.K]*self.K).argmax()
+                k=np.random.randint(low=0,high=self.K)
+                
+                #选作者
+                if len(self.dpre.authors[m])==1:    #这篇文章只有一个作者，那就是TA
+                    a=self.dpre.authors[m][0]
+                else:   #若有多个作者，随机选择一个
+                    idx=np.random.randint(low=0,high=len(self.dpre.authors[m]))
+                    a=self.dpre.authors[m][idx]
+                    
+                self.at[a,k]+=1
+                self.atsum[a]+=1
+                self.tw[k,self.dpre.docs[m][n]]+=1
+                self.twsum[k]+=1
+                self.Z_assigment[m][n]=k
+                self.A_assigment[m][n]=a
+                
+        print('init finish:',datetime.now())
         
-        while not converge and (cur_iter<=self.max_iter):
+        
+    @jit
+    def inferenceModel(self): 
+        self.initializeModel()
+        
+        print('inference start:',datetime.now())
+        
+        cur_iter=0        
+        while cur_iter<=self.max_iter:
             for m in range(self.dpre.docs_count):
                 for n in range(len(self.dpre.docs[m])):   #n is word's index
-                    topic=Z[m][n]
-                    author=A[m][n]
-                    word=self.dpre.docs[m][n]
-                    
-                    at[author,topic]-=1
-                    atsum[author]-=1
-                    tw[topic,word]-=1
-                    twsum[topic]-=1
-
-                    p=np.array([[0.0 for y in range(self.K)] for x in range(self.dpre.authors_count)])
-                    for a in self.dpre.authors[m]:   #!
-                        for k in range(self.K):
-                            p[a,k]=(tw[k,word]+self.beta)/(twsum[k]+self.dpre.words_count*self.beta) \
-                                    *(at[a,k]+self.alpha)/(atsum[a]+self.K*self.alpha)
-                    #print(p)
-                    p=p.reshape(self.dpre.authors_count*self.K)
-                    index=np.random.multinomial(1,p/p.sum()).argmax()
-                    author=int(index/self.K)
-                    topic=index%self.K
-                    
-                    at[author,topic]+=1
-                    atsum[author]+=1
-                    tw[topic,word]+=1
-                    twsum[topic]+=1
-                    Z[m][n]=topic     
-                    A[m][n]=author 
-            #print(cur_iter)
+                    self.sample(m,n)
+            print(cur_iter,datetime.now())
             cur_iter+=1            
-        #output
-        for a in range(self.dpre.authors_count):
-            self.theta[a]=(at[a]+self.alpha)/(atsum[a]+self.alpha*self.K)
-        for k in range(self.K):
-            self.phi[k]=(tw[k]+self.beta)/(twsum[k]+self.beta*self.dpre.words_count)
+        
+        print('inference finish:',datetime.now())
+        
+        self.updateEstimatedParameters()
+        
+        
+
+    @jit
+    def sample(self,m,n):
+        old_topic=self.Z_assigment[m][n]
+        old_author=self.A_assigment[m][n]
+        word=self.dpre.docs[m][n]
+        authors_set=self.dpre.authors[m]
+            
+        self.at[old_author,old_topic]-=1
+        self.atsum[old_author]-=1
+        self.tw[old_topic,word]-=1
+        self.twsum[old_topic]-=1
+
+        section1=(self.tw[:,word]+self.beta)/(self.twsum+self.V*self.beta)
+        section2=(self.at[authors_set,:]+self.alpha)/(self.atsum[authors_set].repeat(self.K).reshape(len(authors_set),self.K)+self.K*self.alpha)
+        p=section1*section2
+        
+        p=p.reshape(len(authors_set)*self.K)
+        index=np.random.multinomial(1,p/p.sum()).argmax()
+        
+        new_author=authors_set[int(index/self.K)]
+        new_topic=index%self.K
+        """
+        p=np.array([[0.0 for y in range(self.K)] for x in range(self.dpre.authors_count)])
+        for a in self.dpre.authors[m]:   #!
+            for k in range(self.K):
+                p[a,k]=(tw[k,word]+self.beta)/(twsum[k]+self.dpre.words_count*self.beta) \
+                        *(at[a,k]+self.alpha)/(atsum[a]+self.K*self.alpha)
+                    #print(p)
+        p=p.reshape(self.dpre.authors_count*self.K)
+        index=np.random.multinomial(1,p/p.sum()).argmax()
+        author=int(index/self.K)
+        topic=index%self.K
+        """            
+        self.at[new_author,new_topic]+=1
+        self.atsum[new_author]+=1
+        self.tw[new_topic,word]+=1
+        self.twsum[new_topic]+=1
+        self.Z_assigment[m][n]=new_topic     
+        self.A_assigment[m][n]=new_author 
     
-    def print_topics(self,topN=10):
+    @jit
+    def updateEstimatedParameters(self):
+        for a in range(self.A):
+            self.theta[a]=(self.at[a]+self.alpha)/(self.atsum[a]+self.alpha*self.K)
         for k in range(self.K):
-            s=''
+            self.phi[k]=(self.tw[k]+self.beta)/(self.twsum[k]+self.beta*self.V)
+        
+        
+    def print_tw(self,topN=10):
+        topics=[]
+        for k in range(self.K):
+            topic=[]
             index=self.phi[k].argsort()[::-1][:topN]
             for ix in index:
                 prob=("%.3f"%self.phi[k,ix])
                 word=self.dpre.id2word[ix]
-                s+=str(prob)+'*'+word+' + '
-            print('topic'+str(k)+':  '+s)
+                topic.append((prob,word))
+            topics.append(topic)
+        return topics
             
-    def perplexity(self,dpre_test=None):
-        #when split the corpus into traing\test set: the authors in testing set should be in trainging set,too.
-        if dpre_test==None:
-            dpre_test=self.dpre
-        N=0
-        p=0.0
-        for m in range(dpre_test.docs_count):   
-            p_d=1.0
-            for n in range(len(dpre_test.docs[m])):
-                authors=dpre_test.authors[m]  #author ids in testing set
-                word=dpre_test.id2word[dpre_test.docs[m][n]]    #word
-                
-                if word in self.dpre.word2id.keys(): #training set has "word"
-                    w_id=self.dpre.word2id[word]  #"word" id in training set
-                    p_w=0.0  #probablity for single word
-                    for a in authors:
-                        a_id=self.dpre.author2id[dpre_test.id2author[a]]    #author id in training set
-                        p_w+=np.dot(self.theta[a_id,:],self.phi[:,w_id])
-                    p_w=p_w/len(authors)  #avg probabily for "word" given by the set of "authors"
-                    p_d*=p_w  #probablity for documents
-                else:  #no way to caculate the probablity for unseen word
-                    pass
-            p+=np.log(p_d)
-            N+=len(dpre_test.docs[m])
-        perplexity=np.exp(-p/N)
-        return perplexity
+            
     
     def symmetric_KL_divergence(self,i,j):
         #caculate symmetric KL divergence between author i and j
@@ -197,5 +217,6 @@ if __name__=='__main__':
     authors=[['Tom','Amy'],['Tom'],['Ward'],['Amy']]
     dpre=preprocessing(corpus,authors)
     K=3
-    model=ATM(dpre,K,max_iter=100)      
+    model=ATM(dpre,K,max_iter=100)
+    model.inferenceModel()
 
